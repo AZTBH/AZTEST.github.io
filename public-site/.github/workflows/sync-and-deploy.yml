@@ -1,7 +1,11 @@
-name: Sync Private Assets and Deploy
+name: Sync Private CSS and Deploy
 
 on:
   workflow_dispatch:
+
+  repository_dispatch:
+    types:
+      - sync-private-assets
 
 permissions:
   contents: write
@@ -17,55 +21,80 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the PUBLIC repository
+      # --------------------------------------------------
+      # Checkout public website repository
+      # --------------------------------------------------
       - name: Checkout public repository
         uses: actions/checkout@v7
         with:
           path: public-site
 
-      # 2. Checkout the PRIVATE repository
-      - name: Checkout private repository
+      # --------------------------------------------------
+      # Checkout private CSS repository
+      # --------------------------------------------------
+      - name: Checkout private assets
         uses: actions/checkout@v7
         with:
           repository: AZTBH/AZTEST.github.io
+          ref: main
           token: ${{ secrets.PRIVATE_REPO_PAT }}
           path: private-assets
 
-      # 3. Copy private CSS into the public repository
-      - name: Sync CSS
+      # --------------------------------------------------
+      # Synchronize CSS
+      # --------------------------------------------------
+      - name: Copy CSS from private repository
         run: |
           rm -rf public-site/css
           mkdir -p public-site/css
 
           cp -R private-assets/css/. public-site/css/
 
-      # 4. Commit the copied CSS into the public repository
-      - name: Commit updated CSS
+      # --------------------------------------------------
+      # Optional: synchronize assets
+      # --------------------------------------------------
+      - name: Copy public assets
+        run: |
+          if [ -d "private-assets/assets" ]; then
+            mkdir -p public-site/assets
+            cp -R private-assets/assets/. public-site/assets/
+          fi
+
+      # --------------------------------------------------
+      # Commit synchronized files
+      # --------------------------------------------------
+      - name: Commit synchronized files
         working-directory: public-site
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add css/
+          git add css/ assets/
 
           if git diff --cached --quiet; then
-            echo "No CSS changes detected."
+            echo "No changes to commit."
           else
-            git commit -m "Sync CSS from private repository"
+            git commit -m "Sync private assets"
             git push
           fi
 
-      # 5. Configure GitHub Pages
-      - name: Setup Pages
+      # --------------------------------------------------
+      # GitHub Pages
+      # --------------------------------------------------
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      # 6. Upload the public website
+      # --------------------------------------------------
+      # Upload website
+      # --------------------------------------------------
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: public-site
 
-      # 7. Deploy
+      # --------------------------------------------------
+      # Deploy website
+      # --------------------------------------------------
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
